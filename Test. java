@@ -1,0 +1,45 @@
+import org.apache.kafka.clients.consumer.*;
+import org.apache.kafka.common.*;
+import org.springframework.kafka.core.*;
+
+import java.util.*;
+
+public class KafkaPartitionReader {
+
+    private final KafkaTemplate<String, String> kafkaTemplate;
+
+    public KafkaPartitionReader(KafkaTemplate<String, String> kafkaTemplate) {
+        this.kafkaTemplate = kafkaTemplate;
+    }
+
+    public void readFromPartition(String topic, int partition) {
+        Properties consumerProps = new Properties();
+        consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
+        consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
+        consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "my-consumer-group");
+
+        KafkaConsumer<String, String> kafkaConsumer = new KafkaConsumer<>(consumerProps);
+
+        TopicPartition topicPartition = new TopicPartition(topic, partition);
+        kafkaConsumer.assign(Collections.singletonList(topicPartition));
+
+        kafkaConsumer.seekToBeginning(Collections.singletonList(topicPartition));
+
+        while (true) {
+            ConsumerRecords<String, String> records = kafkaConsumer.poll(Duration.ofMillis(100));
+
+            for (ConsumerRecord<String, String> record : records) {
+                System.out.printf("Partition: %d, Offset: %d, Key: %s, Value: %s\n",
+                        record.partition(), record.offset(), record.key(), record.value());
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        KafkaTemplate<String, String> kafkaTemplate = new KafkaTemplate<>(new DefaultKafkaProducerFactory<>(new HashMap<>()));
+
+        KafkaPartitionReader reader = new KafkaPartitionReader(kafkaTemplate);
+        reader.readFromPartition("my-topic", 0); // Specify your topic and partition number here
+    }
+}
